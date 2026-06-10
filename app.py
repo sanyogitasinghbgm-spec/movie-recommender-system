@@ -1,13 +1,95 @@
 import pickle
+import os
+import gdown
 import streamlit as st
 import requests
-import os
 from dotenv import load_dotenv
 
-# ── Load environment variables from .env file ───
+# ── Load environment variables ───────────────────
 load_dotenv()
 OMDB_API_KEY = os.getenv("OMDB_API_KEY")
 
+# ── Google Drive file IDs ────────────────────────
+CREDITS_FILE_ID = "1nrmYKrMICVCoozy5B5VsBl8E3TZmvsBy"
+MOVIES_FILE_ID  = "1Zmlh6p2P6tX5otVUlSzpxbA_sm7Ediin"
+
+# ── Auto-download CSVs if missing ────────────────
+os.makedirs("model", exist_ok=True)
+
+if not os.path.exists("tmdb_5000_credits.csv"):
+    with st.spinner("⬇️ Downloading credits data..."):
+        gdown.download(f"https://drive.google.com/uc?id={CREDITS_FILE_ID}", "tmdb_5000_credits.csv", quiet=False)
+
+if not os.path.exists("tmdb_5000_movies.csv"):
+    with st.spinner("⬇️ Downloading movies data..."):
+        gdown.download(f"https://drive.google.com/uc?id={MOVIES_FILE_ID}", "tmdb_5000_movies.csv", quiet=False)
+
+# ── Auto-generate model if pkl files missing ─────
+if not os.path.exists("model/movie_list.pkl") or not os.path.exists("model/similarity.pkl"):
+    with st.spinner("🤖 Building recommendation model (only happens once)..."):
+        import pandas as pd
+        import ast
+        from sklearn.feature_extraction.text import CountVectorizer
+        from sklearn.metrics.pairwise import cosine_similarity
+        import nltk
+        from nltk.stem.porter import PorterStemmer
+
+        nltk.download('punkt', quiet=True)
+
+        movies_df  = pd.read_csv("tmdb_5000_movies.csv")
+        credits_df = pd.read_csv("tmdb_5000_credits.csv")
+
+        movies_df = movies_df.merge(credits_df, on='title')
+
+        movies_df = movies_df[['movie_id', 'title', 'overview', 'genres', 'keywords', 'cast', 'crew']]
+        movies_df.dropna(inplace=True)
+
+        def convert(obj):
+            return [i['name'] for i in ast.literal_eval(obj)]
+
+        def convert3(obj):
+            return [i['name'] for i in ast.literal_eval(obj)[:3]]
+
+        def fetch_director(obj):
+            return [i['name'] for i in ast.literal_eval(obj) if i['job'] == 'Director']
+
+        movies_df['genres']   = movies_df['genres'].apply(convert)
+        movies_df['keywords'] = movies_df['keywords'].apply(convert)
+        movies_df['cast']     = movies_df['cast'].apply(convert3)
+        movies_df['crew']     = movies_df['crew'].apply(fetch_director)
+        movies_df['overview'] = movies_df['overview'].apply(lambda x: x.split())
+
+        for col in ['genres', 'keywords', 'cast', 'crew']:
+            movies_df[col] = movies_df[col].apply(lambda x: [i.replace(" ", "") for i in x])
+
+        movies_df['tags'] = (
+            movies_df['overview'] +
+            movies_df['genres'] +
+            movies_df['keywords'] +
+            movies_df['cast'] +
+            movies_df['crew']
+        )
+
+        new_df = movies_df[['movie_id', 'title', 'tags']].copy()
+        new_df['tags'] = new_df['tags'].apply(lambda x: " ".join(x).lower())
+
+        ps = PorterStemmer()
+        new_df['tags'] = new_df['tags'].apply(
+            lambda x: " ".join([ps.stem(word) for word in x.split()])
+        )
+
+        cv  = CountVectorizer(max_features=5000, stop_words='english')
+        vectors    = cv.fit_transform(new_df['tags']).toarray()
+        similarity = cosine_similarity(vectors)
+
+        pickle.dump(new_df, open('model/movie_list.pkl', 'wb'))
+        pickle.dump(similarity, open('model/similarity.pkl', 'wb'))
+
+        st.success("✅ Model built successfully! Reloading...")
+        st.rerun()
+
+
+# ── Helper functions ─────────────────────────────
 def fetch_poster(movie_title):
     try:
         url = f"http://www.omdbapi.com/?t={requests.utils.quote(movie_title)}&apikey={OMDB_API_KEY}"
@@ -31,7 +113,7 @@ def recommend(movie):
         reverse=True,
         key=lambda x: x[1]
     )
-    recommended_movie_names = []
+    recommended_movie_names   = []
     recommended_movie_posters = []
     for i in distances[1:6]:
         title = movies.iloc[i[0]].title
@@ -39,10 +121,11 @@ def recommend(movie):
         recommended_movie_names.append(title)
     return recommended_movie_names, recommended_movie_posters
 
-# ── PAGE CONFIG ─────────────────────────────────
+
+# ── PAGE CONFIG ──────────────────────────────────
 st.set_page_config(page_title="CineMatch", page_icon="🎬", layout="wide")
 
-# ── CUSTOM CSS ──────────────────────────────────
+# ── CUSTOM CSS ───────────────────────────────────
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
@@ -131,7 +214,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ── HERO ────────────────────────────────────────
+# ── HERO ─────────────────────────────────────────
 st.markdown("""
     <div class='hero'>
         <h1>🎬 CineMatch</h1>
@@ -141,12 +224,12 @@ st.markdown("""
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── LOAD MODEL ──────────────────────────────────
+# ── LOAD MODEL ───────────────────────────────────
 movies     = pickle.load(open('model/movie_list.pkl', 'rb'))
 similarity = pickle.load(open('model/similarity.pkl', 'rb'))
 movie_list = movies['title'].values
 
-# ── SEARCH UI ───────────────────────────────────
+# ── SEARCH UI ────────────────────────────────────
 col_left, col_mid, col_right = st.columns([1, 3, 1])
 with col_mid:
     selected_movie = st.selectbox("🎥 Search for a movie", movie_list)
@@ -154,7 +237,7 @@ with col_mid:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ── RESULTS ─────────────────────────────────────
+# ── RESULTS ──────────────────────────────────────
 if search_btn:
     with st.spinner('🍿 Finding your next favourite movies...'):
         recommended_movie_names, recommended_movie_posters = recommend(selected_movie)
