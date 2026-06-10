@@ -73,10 +73,15 @@ numpy
 
 ## 🌐 API
 
-Poster images are fetched from **TMDB API** using each movie's `movie_id`.
+Poster images are fetched from **OMDB API** using each movie's `movie_id`.
+
+---
+
+## 🚀 Live Demo
+[🎬 CineMatch - Click Here](https://movie-recommender-system-j8p5gtromje4kgdwrrijfa.streamlit.app/)
 
 ---
 
 ## 📚 Credits
-
-Tutorial by [CampusX](https://youtube.com/@campusx-official) · Dataset from [Kaggle TMDB 5000](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata)
+App Development, Documentation and Deployment -- Sanyogita Singh
+Dataset from [Kaggle TMDB 5000](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata)
