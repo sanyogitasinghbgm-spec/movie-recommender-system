@@ -1,4 +1,4 @@
-# 🎬 Movie Recommender System
+# 🎬 CineMatch -- Movie Recommender System
 
 A **content-based movie recommender** built with Python, scikit-learn, and Streamlit — using the TMDB 5000 dataset from Kaggle.
 
