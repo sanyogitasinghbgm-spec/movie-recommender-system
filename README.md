@@ -83,5 +83,4 @@ Poster images are fetched from **OMDB API** using each movie's `movie_id`.
 ---
 
 ## 📚 Credits
-App Development, Documentation and Deployment -- Sanyogita Singh
-Dataset from [Kaggle TMDB 5000](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata)
+App Development, Documentation and Deployment -- Sanyogita Singh . Dataset from [Kaggle TMDB 5000](https://www.kaggle.com/datasets/tmdb/tmdb-movie-metadata)
